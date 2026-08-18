@@ -157,6 +157,53 @@
   window.addEventListener("scroll", updateActiveNav, { passive: true });
 
   /* ================================================
+     6.5 THEME TOGGLE CONTROLLER
+  ================================================ */
+  const themeToggle = document.getElementById("themeToggle");
+
+  function getActiveTheme() {
+    return document.documentElement.getAttribute("data-theme") || "dark";
+  }
+
+  function updateThemeUI(theme) {
+    if (!themeToggle) return;
+    const isLight = theme === "light";
+    const nextLabel = isLight ? "Switch to Dark Mode" : "Switch to Light Mode";
+    themeToggle.setAttribute("aria-label", nextLabel);
+    themeToggle.setAttribute("title", nextLabel);
+  }
+
+  function setTheme(theme, animate = true) {
+    if (animate) {
+      document.documentElement.classList.add("theme-transitioning");
+    }
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem("phb_theme", theme);
+    } catch (e) {}
+
+    updateThemeUI(theme);
+
+    if (animate) {
+      setTimeout(() => {
+        document.documentElement.classList.remove("theme-transitioning");
+      }, 400);
+    }
+  }
+
+  if (themeToggle) {
+    // Initial sync with active attribute
+    const initialTheme = getActiveTheme();
+    updateThemeUI(initialTheme);
+
+    themeToggle.addEventListener("click", () => {
+      const current = getActiveTheme();
+      const next = current === "light" ? "dark" : "light";
+      setTheme(next, true);
+    });
+  }
+
+  /* ================================================
      7. HERO CANVAS PARTICLES
   ================================================ */
   const canvas = document.getElementById("heroCanvas");
@@ -172,10 +219,11 @@
     window.addEventListener("resize", resize, { passive: true });
 
     const COUNT = isMobile ? 40 : 80;
-    const COLORS = ["rgba(108,99,255,", "rgba(184,145,85,", "rgba(255,255,255,"];
+    const COLORS_DARK  = ["rgba(108,99,255,", "rgba(184,145,85,", "rgba(255,255,255,"];
+    const COLORS_LIGHT = ["rgba(84,72,234,",  "rgba(140,96,29,",  "rgba(18,20,34,"];
 
     for (let i = 0; i < COUNT; i++) {
-      const c = COLORS[Math.floor(Math.random() * COLORS.length)];
+      const colorIndex = Math.floor(Math.random() * 3);
       particles.push({
         x: Math.random() * 1200,
         y: Math.random() * 800,
@@ -183,7 +231,7 @@
         vx: (Math.random() - .5) * .3,
         vy: (Math.random() - .5) * .3,
         alpha: Math.random() * .5 + .1,
-        color: c
+        colorIndex: colorIndex
       });
     }
 
@@ -197,6 +245,11 @@
     function drawCanvas() {
       if (!ctx) return;
       ctx.clearRect(0, 0, W, H);
+
+      const isLight = document.documentElement.getAttribute("data-theme") === "light";
+      const currentColors = isLight ? COLORS_LIGHT : COLORS_DARK;
+      const lineColor = isLight ? "rgba(84,72,234," : "rgba(108,99,255,";
+
       particles.forEach(p => {
         // gentle mouse attract
         const dx = heroMouseX * W - p.x;
@@ -210,7 +263,7 @@
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.color + p.alpha + ")";
+        ctx.fillStyle = currentColors[p.colorIndex] + p.alpha + ")";
         ctx.fill();
       });
 
@@ -226,7 +279,7 @@
               ctx.beginPath();
               ctx.moveTo(particles[i].x, particles[i].y);
               ctx.lineTo(particles[j].x, particles[j].y);
-              ctx.strokeStyle = "rgba(108,99,255," + ((1 - dist/100) * .08) + ")";
+              ctx.strokeStyle = lineColor + ((1 - dist/100) * .08) + ")";
               ctx.stroke();
             }
           }
