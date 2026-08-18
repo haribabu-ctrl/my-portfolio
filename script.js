@@ -452,6 +452,8 @@
 
   const certOpenNewTab      = document.getElementById("certOpenNewTab");
   const certDownload         = document.getElementById("certDownload");
+  const certFooterOpenBtn   = document.getElementById("certFooterOpenBtn");
+  const certFooterOpenText  = document.getElementById("certFooterOpenText");
 
   const certLoader          = document.getElementById("certLoader");
   const certErrorState      = document.getElementById("certErrorState");
@@ -662,6 +664,12 @@
     if (certErrorDownloadBtn) {
       certErrorDownloadBtn.href = imgSrc;
       certErrorDownloadBtn.setAttribute("download", fileName);
+    }
+    if (certFooterOpenBtn) {
+      certFooterOpenBtn.href = imgSrc;
+    }
+    if (certFooterOpenText) {
+      certFooterOpenText.textContent = isPdf ? "Open PDF in New Tab" : "Open Image in New Tab";
     }
 
     // Open lightbox modal
