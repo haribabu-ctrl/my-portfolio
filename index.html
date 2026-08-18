@@ -39,17 +39,99 @@
 <div class="cert-lightbox" id="certLightbox" role="dialog" aria-modal="true" aria-label="Certificate viewer" aria-hidden="true">
   <div class="cert-lb-backdrop" id="certBackdrop"></div>
   <div class="cert-lb-panel" id="certPanel">
-    <button class="cert-lb-close" id="certClose" aria-label="Close certificate">
-      <i class="fa-solid fa-xmark"></i>
-    </button>
-    <div class="cert-lb-img-wrap">
-      <img id="certLbImg" src="" alt="" loading="lazy">
+    
+    <!-- Modal Header / Controls -->
+    <div class="cert-lb-header">
+      <div class="cert-lb-meta">
+        <span class="cert-lb-org" id="certLbOrg"></span>
+        <h3 class="cert-lb-name" id="certLbName"></h3>
+      </div>
+      <div class="cert-lb-controls">
+        <!-- Zoom Controls -->
+        <div class="cert-tool-group" id="certZoomGroup">
+          <button class="cert-tool-btn" id="certZoomOut" aria-label="Zoom out" title="Zoom out">
+            <i class="fa-solid fa-minus"></i>
+          </button>
+          <span class="cert-zoom-level" id="certZoomLevel">100%</span>
+          <button class="cert-tool-btn" id="certZoomIn" aria-label="Zoom in" title="Zoom in">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+          <button class="cert-tool-btn" id="certZoomReset" aria-label="Fit to view" title="Reset / Fit">
+            <i class="fa-solid fa-rotate-left"></i>
+          </button>
+        </div>
+
+        <!-- Page Controls (Multi-page PDF) -->
+        <div class="cert-tool-group" id="certPageGroup" style="display: none;">
+          <button class="cert-tool-btn" id="certPrevPage" aria-label="Previous page" title="Previous page">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <span class="cert-page-info" id="certPageInfo">1 / 1</span>
+          <button class="cert-tool-btn" id="certNextPage" aria-label="Next page" title="Next page">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+
+        <!-- Action Links -->
+        <div class="cert-tool-group">
+          <a class="cert-tool-btn cert-action-link" id="certOpenNewTab" href="#" target="_blank" rel="noopener noreferrer" aria-label="Open document in new tab" title="Open in new tab">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            <span class="tool-text">Open</span>
+          </a>
+          <a class="cert-tool-btn cert-action-link" id="certDownload" href="#" download aria-label="Download document" title="Download">
+            <i class="fa-solid fa-download"></i>
+            <span class="tool-text">Download</span>
+          </a>
+        </div>
+
+        <!-- Close Button -->
+        <button class="cert-lb-close" id="certClose" aria-label="Close certificate viewer" title="Close (Esc)">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
     </div>
-    <div class="cert-lb-info">
-      <span class="cert-lb-org" id="certLbOrg"></span>
-      <h3 class="cert-lb-name" id="certLbName"></h3>
+
+    <!-- Viewer Body -->
+    <div class="cert-lb-body" id="certLbBody">
+      <!-- Loading State -->
+      <div class="cert-loader-wrap" id="certLoader" aria-hidden="true">
+        <div class="cert-spinner"></div>
+        <span class="cert-loader-text">Loading document...</span>
+      </div>
+
+      <!-- Fallback / Error State -->
+      <div class="cert-error-wrap" id="certErrorState" style="display: none;">
+        <i class="fa-solid fa-file-lines cert-error-icon"></i>
+        <h4 class="cert-error-title">Preview not available in this view</h4>
+        <p class="cert-error-desc">You can directly open or download the document using the buttons below.</p>
+        <div class="cert-error-btns">
+          <a class="btn btn-primary btn-sm" id="certErrorOpenBtn" href="#" target="_blank" rel="noopener">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Document
+          </a>
+          <a class="btn btn-ghost btn-sm" id="certErrorDownloadBtn" href="#" download>
+            <i class="fa-solid fa-download"></i> Download
+          </a>
+        </div>
+      </div>
+
+      <!-- PDF Canvas Viewport -->
+      <div class="cert-viewport cert-pdf-viewport" id="certPdfViewport" style="display: none;">
+        <div class="cert-canvas-container" id="certCanvasContainer">
+          <canvas id="certPdfCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Image Viewport -->
+      <div class="cert-viewport cert-img-viewport" id="certImgViewport" style="display: none;">
+        <img id="certLbImg" src="" alt="" draggable="false">
+      </div>
+    </div>
+
+    <!-- Footer Meta -->
+    <div class="cert-lb-footer" id="certLbFooter">
       <p class="cert-lb-date" id="certLbDate"></p>
     </div>
+
   </div>
 </div>
 
@@ -793,6 +875,8 @@
   </div>
 </footer>
 
+<!-- PDF.js for crisp native canvas document viewing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

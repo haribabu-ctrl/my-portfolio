@@ -423,79 +423,351 @@
   }
 
   /* ================================================
-     13. CERTIFICATION LIGHTBOX
+     13. CERTIFICATION LIGHTBOX & PDF VIEWER
   ================================================ */
-  const certLightbox = document.getElementById("certLightbox");
-  const certBackdrop = document.getElementById("certBackdrop");
-  const certPanel    = document.getElementById("certPanel");
-  const certClose    = document.getElementById("certClose");
-  const certLbImg    = document.getElementById("certLbImg");
-  const certLbOrg    = document.getElementById("certLbOrg");
-  const certLbName   = document.getElementById("certLbName");
-  const certLbDate   = document.getElementById("certLbDate");
+  // Configure PDF.js worker
+  if (typeof pdfjsLib !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+
+  const certLightbox        = document.getElementById("certLightbox");
+  const certBackdrop        = document.getElementById("certBackdrop");
+  const certPanel           = document.getElementById("certPanel");
+  const certClose           = document.getElementById("certClose");
+  const certLbOrg           = document.getElementById("certLbOrg");
+  const certLbName          = document.getElementById("certLbName");
+  const certLbDate          = document.getElementById("certLbDate");
+
+  const certZoomGroup       = document.getElementById("certZoomGroup");
+  const certZoomIn          = document.getElementById("certZoomIn");
+  const certZoomOut         = document.getElementById("certZoomOut");
+  const certZoomReset       = document.getElementById("certZoomReset");
+  const certZoomLevel       = document.getElementById("certZoomLevel");
+
+  const certPageGroup       = document.getElementById("certPageGroup");
+  const certPrevPage        = document.getElementById("certPrevPage");
+  const certNextPage        = document.getElementById("certNextPage");
+  const certPageInfo        = document.getElementById("certPageInfo");
+
+  const certOpenNewTab      = document.getElementById("certOpenNewTab");
+  const certDownload         = document.getElementById("certDownload");
+
+  const certLoader          = document.getElementById("certLoader");
+  const certErrorState      = document.getElementById("certErrorState");
+  const certErrorOpenBtn    = document.getElementById("certErrorOpenBtn");
+  const certErrorDownloadBtn= document.getElementById("certErrorDownloadBtn");
+
+  const certPdfViewport     = document.getElementById("certPdfViewport");
+  const certPdfCanvas       = document.getElementById("certPdfCanvas");
+  const certImgViewport     = document.getElementById("certImgViewport");
+  const certLbImg           = document.getElementById("certLbImg");
+
+  // State
+  let currentDocSrc   = "";
+  let currentDocType  = "image"; // "pdf" | "image"
+  let currentZoom     = 1.0;
+  let currentPdfDoc   = null;
+  let currentPageNum  = 1;
+  let totalPdfPages   = 1;
+  let pdfRenderTask   = null;
+  let resizeDebounce  = null;
+
+  function showCertLoader(show) {
+    if (certLoader) {
+      if (show) certLoader.classList.remove("hidden");
+      else certLoader.classList.add("hidden");
+    }
+  }
+
+  function showCertError(show, src) {
+    if (certErrorState) {
+      certErrorState.style.display = show ? "flex" : "none";
+      if (show && src) {
+        if (certErrorOpenBtn) certErrorOpenBtn.href = src;
+        if (certErrorDownloadBtn) {
+          certErrorDownloadBtn.href = src;
+          certErrorDownloadBtn.setAttribute("download", src.split("/").pop());
+        }
+      }
+    }
+  }
+
+  function updateZoomUI() {
+    if (certZoomLevel) {
+      certZoomLevel.textContent = Math.round(currentZoom * 100) + "%";
+    }
+    if (certZoomOut) certZoomOut.disabled = currentZoom <= 0.5;
+    if (certZoomIn) certZoomIn.disabled = currentZoom >= 3.0;
+  }
+
+  function applyZoom() {
+    updateZoomUI();
+    if (currentDocType === "image" && certLbImg) {
+      certLbImg.style.transform = `scale(${currentZoom})`;
+    } else if (currentDocType === "pdf" && currentPdfDoc) {
+      renderPdfPage(currentPageNum);
+    }
+  }
+
+  function updatePageUI() {
+    if (certPageInfo) {
+      certPageInfo.textContent = `${currentPageNum} / ${totalPdfPages}`;
+    }
+    if (certPrevPage) certPrevPage.disabled = currentPageNum <= 1;
+    if (certNextPage) certNextPage.disabled = currentPageNum >= totalPdfPages;
+  }
+
+  function renderPdfPage(num) {
+    if (!currentPdfDoc || !certPdfCanvas) return;
+
+    if (pdfRenderTask) {
+      pdfRenderTask.cancel();
+      pdfRenderTask = null;
+    }
+
+    showCertLoader(true);
+
+    currentPdfDoc.getPage(num).then(page => {
+      // Calculate responsive scale
+      const unscaledViewport = page.getViewport({ scale: 1 });
+      const containerWidth = certPdfViewport ? (certPdfViewport.clientWidth || 800) : 800;
+      const targetWidth = Math.max(280, Math.min(containerWidth - 24, 920));
+      const baseScale = targetWidth / unscaledViewport.width;
+      const finalScale = baseScale * currentZoom;
+      const viewport = page.getViewport({ scale: finalScale });
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      certPdfCanvas.width = Math.floor(viewport.width * dpr);
+      certPdfCanvas.height = Math.floor(viewport.height * dpr);
+      certPdfCanvas.style.width = Math.floor(viewport.width) + "px";
+      certPdfCanvas.style.height = Math.floor(viewport.height) + "px";
+
+      const ctx = certPdfCanvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const renderContext = {
+        canvasContext: ctx,
+        viewport: viewport
+      };
+
+      pdfRenderTask = page.render(renderContext);
+      pdfRenderTask.promise.then(() => {
+        showCertLoader(false);
+        pdfRenderTask = null;
+        updatePageUI();
+      }).catch(err => {
+        if (err && err.name !== "RenderingCancelledException") {
+          console.error("PDF page render error:", err);
+          showCertLoader(false);
+        }
+      });
+    }).catch(err => {
+      console.error("Error getting PDF page:", err);
+      showCertLoader(false);
+      showCertError(true, currentDocSrc);
+    });
+  }
+
+  function loadPdfDocument(src) {
+    currentDocType = "pdf";
+    currentZoom = 1.0;
+    currentPageNum = 1;
+    totalPdfPages = 1;
+    currentPdfDoc = null;
+
+    if (certPdfViewport) certPdfViewport.style.display = "flex";
+    if (certImgViewport) certImgViewport.style.display = "none";
+    if (certZoomGroup) certZoomGroup.style.display = "flex";
+    showCertError(false);
+    showCertLoader(true);
+    updateZoomUI();
+
+    if (typeof pdfjsLib === "undefined") {
+      showCertLoader(false);
+      showCertError(true, src);
+      return;
+    }
+
+    const loadingTask = pdfjsLib.getDocument({
+      url: src,
+      cMapUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/",
+      cMapPacked: true
+    });
+
+    loadingTask.promise.then(pdf => {
+      currentPdfDoc = pdf;
+      totalPdfPages = pdf.numPages;
+
+      if (certPageGroup) {
+        certPageGroup.style.display = totalPdfPages > 1 ? "flex" : "none";
+      }
+
+      renderPdfPage(1);
+    }).catch(err => {
+      console.error("Error loading PDF document:", err);
+      showCertLoader(false);
+      showCertError(true, src);
+    });
+  }
+
+  function loadImageDocument(src, altName) {
+    currentDocType = "image";
+    currentZoom = 1.0;
+    currentPdfDoc = null;
+
+    if (certPdfViewport) certPdfViewport.style.display = "none";
+    if (certPageGroup) certPageGroup.style.display = "none";
+    if (certImgViewport) certImgViewport.style.display = "flex";
+    if (certZoomGroup) certZoomGroup.style.display = "flex";
+    showCertError(false);
+    showCertLoader(true);
+    updateZoomUI();
+
+    if (certLbImg) {
+      certLbImg.style.transform = "scale(1)";
+      certLbImg.onload = () => {
+        showCertLoader(false);
+      };
+      certLbImg.onerror = () => {
+        showCertLoader(false);
+        showCertError(true, src);
+      };
+      certLbImg.src = src;
+      certLbImg.alt = altName || "Certificate";
+    }
+  }
 
   function openCertLightbox(imgSrc, org, name, date) {
     if (!certLightbox) return;
 
-    // Clear previous content
-    const wrap = certLbImg ? certLbImg.parentElement : null;
-
-    // Determine if it's a PDF
+    currentDocSrc = imgSrc;
     const isPdf = imgSrc.toLowerCase().endsWith(".pdf");
 
-    if (wrap) {
-      // Remove any previous iframe
-      const prevIframe = wrap.querySelector("iframe");
-      if (prevIframe) prevIframe.remove();
-
-      if (isPdf) {
-        // Show PDF in iframe, hide img
-        if (certLbImg) certLbImg.style.display = "none";
-        const iframe = document.createElement("iframe");
-        iframe.src = imgSrc;
-        iframe.setAttribute("aria-label", name + " certificate");
-        wrap.appendChild(iframe);
-      } else {
-        // Show image
-        const prevIframe2 = wrap.querySelector("iframe");
-        if (prevIframe2) prevIframe2.remove();
-        if (certLbImg) {
-          certLbImg.style.display = "";
-          certLbImg.src = imgSrc;
-          certLbImg.alt = name;
-        }
-      }
-    }
-
+    // Populate header info
     if (certLbOrg)  certLbOrg.textContent  = org;
     if (certLbName) certLbName.textContent  = name;
-    if (certLbDate) certLbDate.textContent  = date;
+    if (certLbDate) certLbDate.textContent  = date || "";
 
+    // Set actions
+    const fileName = imgSrc.split("/").pop();
+    if (certOpenNewTab) {
+      certOpenNewTab.href = imgSrc;
+    }
+    if (certDownload) {
+      certDownload.href = imgSrc;
+      certDownload.setAttribute("download", fileName);
+    }
+    if (certErrorOpenBtn) certErrorOpenBtn.href = imgSrc;
+    if (certErrorDownloadBtn) {
+      certErrorDownloadBtn.href = imgSrc;
+      certErrorDownloadBtn.setAttribute("download", fileName);
+    }
+
+    // Open lightbox modal
     certLightbox.classList.add("open");
     certLightbox.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+
+    // Load file
+    if (isPdf) {
+      loadPdfDocument(imgSrc);
+    } else {
+      loadImageDocument(imgSrc, name);
+    }
   }
 
   function closeCertLightbox() {
     if (!certLightbox) return;
+
+    if (pdfRenderTask) {
+      pdfRenderTask.cancel();
+      pdfRenderTask = null;
+    }
+
     certLightbox.classList.remove("open");
     certLightbox.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
-    // Cleanup after animation
+
+    // Cleanup
     setTimeout(() => {
-      if (certLbImg) { certLbImg.src = ""; certLbImg.style.display = ""; }
-      const wrap = certLbImg ? certLbImg.parentElement : null;
-      if (wrap) { const iframe = wrap.querySelector("iframe"); if (iframe) iframe.remove(); }
-    }, 500);
+      if (certLbImg) { certLbImg.src = ""; certLbImg.style.transform = "scale(1)"; }
+      if (certPdfCanvas) {
+        const ctx = certPdfCanvas.getContext("2d");
+        if (ctx) ctx.clearRect(0, 0, certPdfCanvas.width, certPdfCanvas.height);
+      }
+      currentPdfDoc = null;
+      currentZoom = 1.0;
+      showCertLoader(false);
+      showCertError(false);
+    }, 400);
   }
 
-  if (certClose)   certClose.addEventListener("click", closeCertLightbox);
+  // Event Listeners for Viewer Controls
+  if (certClose) certClose.addEventListener("click", closeCertLightbox);
   if (certBackdrop) certBackdrop.addEventListener("click", closeCertLightbox);
+
+  // Zoom events
+  if (certZoomIn) {
+    certZoomIn.addEventListener("click", () => {
+      if (currentZoom < 3.0) {
+        currentZoom = Math.min(3.0, +(currentZoom + 0.25).toFixed(2));
+        applyZoom();
+      }
+    });
+  }
+
+  if (certZoomOut) {
+    certZoomOut.addEventListener("click", () => {
+      if (currentZoom > 0.5) {
+        currentZoom = Math.max(0.5, +(currentZoom - 0.25).toFixed(2));
+        applyZoom();
+      }
+    });
+  }
+
+  if (certZoomReset) {
+    certZoomReset.addEventListener("click", () => {
+      currentZoom = 1.0;
+      applyZoom();
+    });
+  }
+
+  // Page navigation events
+  if (certPrevPage) {
+    certPrevPage.addEventListener("click", () => {
+      if (currentPageNum > 1) {
+        currentPageNum--;
+        renderPdfPage(currentPageNum);
+      }
+    });
+  }
+
+  if (certNextPage) {
+    certNextPage.addEventListener("click", () => {
+      if (currentPageNum < totalPdfPages) {
+        currentPageNum++;
+        renderPdfPage(currentPageNum);
+      }
+    });
+  }
+
+  // Keyboard shortcut: Escape
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && certLightbox && certLightbox.classList.contains("open")) {
       closeCertLightbox();
     }
   });
+
+  // Re-render PDF on window resize with debounce
+  window.addEventListener("resize", () => {
+    if (certLightbox && certLightbox.classList.contains("open") && currentDocType === "pdf" && currentPdfDoc) {
+      clearTimeout(resizeDebounce);
+      resizeDebounce = setTimeout(() => {
+        renderPdfPage(currentPageNum);
+      }, 200);
+    }
+  }, { passive: true });
 
   // Attach to certification cards
   document.querySelectorAll(".cert-card[data-img]").forEach(card => {
@@ -513,12 +785,11 @@
     });
   });
 
-  // Expose for inline onclick use (timeline cert buttons, project cert buttons)
+  // Expose for timeline and education cards
   window.openCertFromTimeline = function(imgSrc, org, name, date) {
     openCertLightbox(imgSrc, org, name, date);
   };
 
-  // Education memos
   window.openEduMemo = function(imgSrc, org, name, date) {
     openCertLightbox(imgSrc, org, name, date);
   };
